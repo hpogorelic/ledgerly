@@ -1,0 +1,6 @@
+[submodule "shared"]
+	path = shared
+	url = https://github.com/hpogorelic/ledgerly-shared.git
+[submodule "reports"]
+	path = vendor/reports
+	url = https://github.com/hpogorelic/ledgerly-reports.git
