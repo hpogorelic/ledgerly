@@ -41,8 +41,9 @@ test('createApp is a function that returns a distinct Express app on each call',
 
 test('createApp mounts json parser, /entries, /health and the error handler in that order', () => {
   const app = createApp()
-  const stack = app._router.stack
-  const layers = stack.slice(-4).map((l) => l.name + ':' + (l.regexp.source.includes('entries') ? 'entries' : l.regexp.source.includes('health') ? 'health' : ''))
+  const stack = app.router.stack
+  const mounted = (l, p) => l.matchers.some((m) => m(p))
+  const layers = stack.slice(-4).map((l) => l.name + ':' + (mounted(l, '/entries') ? 'entries' : mounted(l, '/health') ? 'health' : ''))
   assert.deepEqual(layers.slice(0, 3), ['jsonParser:', 'router:entries', 'router:health'])
   assert.equal(stack[stack.length - 1].handle.length, 4)
 })
