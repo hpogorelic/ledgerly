@@ -4,6 +4,9 @@
   "private": true,
   "description": "small ledger api",
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
