@@ -8,7 +8,7 @@
 | Pipeline | full |
 | Status | completed |
 | Started | 2026-10-04T14:17:34.966Z |
-| Ended | 2026-10-04T19:43:18.836Z |
+| Ended | 2026-10-04T19:44:56.871Z |
 | Active time | 87 min |
 | Run | 33769bb5-8abe-4115-8af6-7eb86ec95dce |
 
@@ -25,20 +25,20 @@ Before using the result:
 
 ## Summary
 
-Before using the result, 6 setup steps are required: create a local environment file holding the database and cache passwords and connection addresses, rotate both passwords because the old values remain in the project history, and revoke a leaked bearer token on the accounting system. The run completed 20 tickets covering security fixes, dependency upgrades, new safety-net tests, tooling such as a linter and continuous integration, and cleanup of dead code and stale files, with no ticket blocked, deferred or dropped. The most important change for security closes a SQL injection hole in the lookup of entries by account, so hostile input is now matched literally instead of reaching the database. The second most important change is that error responses no longer expose internal details, every response now carries standard security headers, and the entries endpoints are rate limited per visitor. On the scorecard 13 measures got better, including security advisories dropping from 11 to 0, duplicated code dropping from 5.2 to 0, dependencies a major version behind going from 3 to 1, and a linter, continuous integration, a pinned Node version and accurate README commands now in place; 2 got worse, as the test run now counts 0 tests where it counted 4 before. No ticket was left unfinished, though a pagination change for the full entries list is waiting on a decision, the questions on authentication and a move to the next major version of the web framework were left unanswered at the approval step, and 1 finding about an outdated shared module was not turned into a ticket. The documentation work updated the README with setup and development-environment instructions and added an architecture overview and a hand-off document that lists the remaining work and the open decisions. The run took 87 minutes of active time, mostly in fixing at 35 minutes and documentation at 44 minutes, and cost $7.02 in total.
+Before using the result, 6 setup steps are needed: copy the example environment file and fill in the database and cache passwords and connection addresses, rotate those passwords because the old values remain in the project history, and revoke a leaked access token on the accounting system. The run completed 20 tickets of security, dependency, testing and housekeeping work, plus 3 documentation tickets. The most important change for security is that looking up ledger entries by account no longer allows SQL injection, and error responses no longer reveal internal details; security headers and per-visitor rate limiting were also added. Second, an unused file containing a hard-coded access token was deleted together with a deprecated library, and the web framework and the cache client were upgraded. On the scorecard 15 measures got better and 0 got worse: security advisories fell from 11 to 0, tests grew from 4 to 60 with all passing, duplicated code fell from 5.2 percent to 0, and a linter, automated checks, a pinned Node version and valid README commands are now in place, while the test suite now takes longer to run. Nothing was deferred, blocked or dropped, but adding pagination to the entry list is waiting on an unanswered decision, the questions about requiring authentication and moving to the framework's next major version are still open, and 1 low-severity finding about an old pinned shared-code version was not made into a ticket. The documentation written includes an updated README covering setup, commands and the development environment, a new architecture overview with a diagram, and a next-steps hand-off that records the open decisions. The run took 87 minutes of active time and cost $7.16.
 
-- 20 tickets done and 3 documentation tickets done; none blocked, deferred or dropped.
-- Security advisories went from 11 to 0, including 2 critical and 4 high.
-- A SQL injection hole in the lookup of entries by account was closed.
-- The test run now reports 0 tests, down from 4.
-- 6 setup steps are required, including rotating leaked passwords and revoking a leaked token.
+- Security advisories fell from 11 to 0.
+- Tests grew from 4 to 60, all passing.
+- SQL injection in the by-account ledger lookup was closed.
+- 6 setup steps are required, including rotating passwords and revoking a leaked token.
+- Pagination and authentication are still waiting on decisions.
 
 ## Health
 
 | Area | Before | After | Why (after) |
 | --- | --- | --- | --- |
 | build | ⚪ unknown | ⚪ unknown | build.ok is unknown |
-| tests | 🟢 green | 🟡 yellow | there are no tests |
+| tests | 🟢 green | 🟢 green | 60 tests, none failing |
 | security | 🔴 red | 🟢 green | no critical, high, or moderate advisory |
 | dependencies | 🟡 yellow | 🟡 yellow | 1 a major behind, 0 unused, 0 overlapping; the run added 5 package(s): @eslint/js, eslint, express-rate-limit, globals, helmet |
 | alignment | ⚪ unknown | ⚪ unknown | alignment.framework is unknown |
@@ -57,12 +57,12 @@ Before using the result, 6 setup steps are required: create a local environment 
 | build.durationMs | unknown | unknown |  | unknown |
 | build.warnings | unknown | unknown |  | unknown |
 | tests.runner | node | node |  | measured |
-| tests.total | 4 | 0 | -4 ✗ | measured |
-| tests.passed | 4 | 0 | -4 ✗ | measured |
+| tests.total | 4 | 60 | +56 ✓ | measured |
+| tests.passed | 4 | 60 | +56 ✓ | measured |
 | tests.failed | 0 | 0 |  | measured |
 | tests.skipped | 0 | 0 |  | measured |
 | tests.failing |  |  |  | measured |
-| tests.durationMs | 224 | 303 | +79 | measured |
+| tests.durationMs | 224 | 2907 | +2683 | measured |
 | audit.critical | 2 | 0 | -2 ✓ | measured |
 | audit.high | 4 | 0 | -4 ✓ | measured |
 | audit.moderate | 2 | 0 | -2 ✓ | measured |
@@ -89,7 +89,7 @@ Before using the result, 6 setup steps are required: create a local environment 
 | deadcode.files | 1 | 0 | -1 ✓ | measured |
 | findings.by_severity | critical 1, high 6, medium 10, low 20, info 0 | critical 0, high 0, medium 1, low 1, info 0 | changed | measured |
 
-13 better, 2 worse, 4 changed without a direction.
+15 better, 0 worse, 4 changed without a direction.
 
 ## Tickets
 
@@ -162,7 +162,7 @@ Before using the result, 6 setup steps are required: create a local environment 
 
 ## Cost
 
-About $7.02 of model usage (approximate, from the configured prices); $6.87 before this report's narrative was written. Cache hit ratio 81.1%: the share of input tokens read from the prompt cache.
+About $7.16 of model usage (approximate, from the configured prices); $7.02 before this report's narrative was written. Cache hit ratio 80.7%: the share of input tokens read from the prompt cache.
 
 | Role | Cost |
 | --- | --- |
@@ -172,7 +172,7 @@ About $7.02 of model usage (approximate, from the configured prices); $6.87 befo
 | qa | $0.29 |
 | reviewer | $2.20 |
 | developer | $2.21 |
-| tech_writer | $0.93 |
+| tech_writer | $1.07 |
 
 | Phase | Cost |
 | --- | --- |
@@ -181,7 +181,7 @@ About $7.02 of model usage (approximate, from the configured prices); $6.87 befo
 | roadmap | $0.73 |
 | fixing | $4.32 |
 | documentation | $1.02 |
-| report | $0.29 |
+| report | $0.44 |
 
 ## Time
 
@@ -216,7 +216,7 @@ About $7.02 of model usage (approximate, from the configured prices); $6.87 befo
 
 ## Artifacts
 
-Branch `showtime/33769bb5`: 24 commit(s) on 4edd33c.
+Branch `showtime/33769bb5`: 25 commit(s) on 4edd33c.
 
 - 0b36eef test: characterize entries routes, health, cache and pool helpers
 - d6daad4 fix: parameterise SQL in GET /entries/by-account/:account
@@ -242,6 +242,7 @@ Branch `showtime/33769bb5`: 24 commit(s) on 4edd33c.
 - b2e2f7a docs: add ARCHITECTURE.md with modules, data flow and diagram
 - 5d51e52 docs: add NEXT_STEPS hand-off with outcomes, setup and open decisions
 - b630a7d docs: add the Showtime run report
+- b9f16fd docs: update the Showtime run report from a new measurement
 
 Files (`run:export <run> --dir <path>`): `showtime-33769bb5.bundle`, `showtime-33769bb5.patch`, `report.md`, `report.json`.
 
