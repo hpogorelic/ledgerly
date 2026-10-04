@@ -29,11 +29,27 @@ npm run dev       # node --watch src/server.js
 
 ## Tests
 
+The integration tests need live PostgreSQL and Redis, and they run `TRUNCATE entries` and `FLUSHDB` on whatever `DATABASE_URL` and `REDIS_URL` point to. Use a separate test database and a separate Redis DB index, never your development data.
+
+1. Start the stores first:
+
+   ```
+   docker compose up db cache
+   ```
+
+2. Create the test database once: `docker compose exec db createdb -U ledgerly ledgerly_test`.
+3. Copy the example file and fill in the passwords: `cp .env.test.example .env.test` (it points at `ledgerly_test` and Redis DB index `1` on `localhost`).
+4. Run the tests with that file loaded:
+
+   ```
+   npm run test:env   # node --env-file=.env.test --test
+   ```
+
+Where `DATABASE_URL` and `REDIS_URL` are already exported (for example in CI), plain `npm test` works:
+
 ```
 npm test
 ```
-
-`npm test` needs live PostgreSQL and Redis (set `DATABASE_URL` and `REDIS_URL`) for the integration tests.
 
 ## Endpoints
 
