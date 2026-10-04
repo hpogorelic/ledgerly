@@ -19,7 +19,7 @@
     "express": "5.2.1",
     "express-rate-limit": "8.7.0",
     "helmet": "8.3.0",
-    "ioredis": "4.28.5",
+    "ioredis": "5.11.1",
     "pg": "8.7.1"
   },
   "devDependencies": {
