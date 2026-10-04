@@ -12,7 +12,7 @@ process.env.REDIS_URL = 'redis://127.0.0.1:1'
 const { createApp } = await import('../src/app.js')
 const { default: entriesRouter } = await import('../src/routes/entries.js')
 const { default: healthRouter } = await import('../src/routes/health.js')
-const { getPool, query, queryAsync } = await import('../src/db/pool.js')
+const { getPool, query } = await import('../src/db/pool.js')
 const { getCache, cached } = await import('../src/db/cache.js')
 
 // ---- fakes -------------------------------------------------------------
@@ -28,11 +28,13 @@ const redisMethods = ['get', 'set', 'del', 'ping']
 const realRedis = {}
 for (const m of redisMethods) realRedis[m] = Redis.prototype[m]
 
-pg.Pool.prototype.query = function (text, params, cb) {
+pg.Pool.prototype.query = function (text, params) {
   pgCalls.push({ text, params })
-  let result, error
-  try { result = pgHandler(text, params) } catch (e) { error = e }
-  setImmediate(function () { error ? cb(error) : cb(null, result) })
+  return new Promise(function (resolve, reject) {
+    let result, error
+    try { result = pgHandler(text, params) } catch (e) { error = e }
+    setImmediate(function () { error ? reject(error) : resolve(result) })
+  })
 }
 
 Redis.prototype.get = async function (key) {
@@ -117,29 +119,15 @@ test('pool: getPool returns one shared pg.Pool built from DATABASE_URL', () => {
   assert.equal(p.options.connectionString, process.env.DATABASE_URL)
 })
 
-test('pool: query passes text and params and calls back with (null, result)', async () => {
+test('pool: query passes text and params and resolves with the result', async () => {
   pgHandler = () => ({ rows: [{ a: 1 }] })
-  const [err, res] = await new Promise((resolve) => query('SELECT $1', [7], (e, r) => resolve([e, r])))
-  assert.equal(err, null)
-  assert.deepEqual(res, { rows: [{ a: 1 }] })
+  assert.deepEqual(await query('SELECT $1', [7]), { rows: [{ a: 1 }] })
   assert.deepEqual(pgCalls, [{ text: 'SELECT $1', params: [7] }])
 })
 
-test('pool: query calls back with only the error when the pool fails', async () => {
-  pgHandler = () => { throw new Error('boom') }
-  const args = await new Promise((resolve) => query('SELECT 1', [], (...a) => resolve(a)))
-  assert.equal(args.length, 1)
-  assert.equal(args[0].message, 'boom')
-})
-
-test('pool: queryAsync resolves with the result', async () => {
-  pgHandler = () => ({ rows: [{ x: 'y' }] })
-  assert.deepEqual(await queryAsync('SELECT 1', []), { rows: [{ x: 'y' }] })
-})
-
-test('pool: queryAsync rejects with the pool error', async () => {
+test('pool: query rejects with the pool error', async () => {
   pgHandler = () => { throw new Error('nope') }
-  await assert.rejects(queryAsync('SELECT 1', []), { message: 'nope' })
+  await assert.rejects(query('SELECT 1', []), { message: 'nope' })
 })
 
 // ---- src/db/cache.js ---------------------------------------------------

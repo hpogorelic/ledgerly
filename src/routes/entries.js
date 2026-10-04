@@ -1,7 +1,7 @@
 import express from 'express'
 import { validateEntry } from '../../shared/index.js'
 import { toCents, fromCents } from '../../shared/index.js'
-import { query, queryAsync } from '../db/pool.js'
+import { query } from '../db/pool.js'
 import { cached, getCache } from '../db/cache.js'
 
 const router = express.Router()
@@ -14,7 +14,7 @@ function internalError(res, err) {
 router.get('/', async function (req, res) {
   try {
     const rows = await cached('entries:all', 30, async function () {
-      const r = await queryAsync('SELECT id, account, amount_cents, memo, created_at FROM entries ORDER BY id', [])
+      const r = await query('SELECT id, account, amount_cents, memo, created_at FROM entries ORDER BY id', [])
       return r.rows
     })
     res.json(rows.map(function (row) {
@@ -25,35 +25,41 @@ router.get('/', async function (req, res) {
   }
 })
 
-router.get('/by-account/:account', function (req, res) {
-  query('SELECT id, account, amount_cents, memo, created_at FROM entries WHERE account = $1 ORDER BY id', [req.params.account], function (err, r) {
-    if (err) return internalError(res, err)
+router.get('/by-account/:account', async function (req, res) {
+  try {
+    const r = await query('SELECT id, account, amount_cents, memo, created_at FROM entries WHERE account = $1 ORDER BY id', [req.params.account])
     res.json(r.rows.map(function (row) {
       return { id: row.id, account: row.account, amount: fromCents(row.amount_cents), memo: row.memo, createdAt: row.created_at }
     }))
-  })
+  } catch (e) {
+    internalError(res, e)
+  }
 })
 
-router.post('/', function (req, res) {
-  var errors = validateEntry(req.body)
+router.post('/', async function (req, res) {
+  const errors = validateEntry(req.body)
   if (errors.length) return res.status(400).json({ errors: errors })
-  var cents = toCents(req.body.amount)
-  query('INSERT INTO entries (account, amount_cents, memo) VALUES ($1, $2, $3) RETURNING id, account, amount_cents, memo, created_at',
-    [req.body.account, cents, req.body.memo || null], function (err, r) {
-      if (err) return internalError(res, err)
-      getCache().del('entries:all')
-      var row = r.rows[0]
-      res.status(201).json({ id: row.id, account: row.account, amount: fromCents(row.amount_cents), memo: row.memo, createdAt: row.created_at })
-    })
+  try {
+    const cents = toCents(req.body.amount)
+    const r = await query('INSERT INTO entries (account, amount_cents, memo) VALUES ($1, $2, $3) RETURNING id, account, amount_cents, memo, created_at',
+      [req.body.account, cents, req.body.memo || null])
+    await getCache().del('entries:all')
+    const row = r.rows[0]
+    res.status(201).json({ id: row.id, account: row.account, amount: fromCents(row.amount_cents), memo: row.memo, createdAt: row.created_at })
+  } catch (e) {
+    internalError(res, e)
+  }
 })
 
-router.get('/balance/:account', function (req, res) {
-  query('SELECT amount_cents FROM entries WHERE account = $1', [req.params.account], function (err, r) {
-    if (err) return internalError(res, err)
-    var total = 0
-    for (var i = 0; i < r.rows.length; i++) total = total + r.rows[i].amount_cents
+router.get('/balance/:account', async function (req, res) {
+  try {
+    const r = await query('SELECT amount_cents FROM entries WHERE account = $1', [req.params.account])
+    let total = 0
+    for (let i = 0; i < r.rows.length; i++) total = total + r.rows[i].amount_cents
     res.json({ account: req.params.account, balance: fromCents(total) })
-  })
+  } catch (e) {
+    internalError(res, e)
+  }
 })
 
 export default router
