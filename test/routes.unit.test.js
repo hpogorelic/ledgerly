@@ -356,14 +356,15 @@ test('malformed JSON goes to the app error handler: 400 with a generic message a
 // ---- GET /entries/balance/:account ------------------------------------
 
 test('GET /entries/balance/:account sums amount_cents and returns decimals', async () => {
-  pgHandler = () => ({ rows: [{ amount_cents: 1250 }, { amount_cents: -250 }, { amount_cents: 1 }] })
+  pgHandler = () => ({ rows: [{ total: '1001' }] })
   const r = await fetch(base + '/entries/balance/cash')
   assert.equal(r.status, 200)
   assert.deepEqual(await r.json(), { account: 'cash', balance: 10.01 })
-  assert.deepEqual(pgCalls, [{ text: 'SELECT amount_cents FROM entries WHERE account = $1', params: ['cash'] }])
+  assert.deepEqual(pgCalls, [{ text: 'SELECT COALESCE(SUM(amount_cents),0)::bigint AS total FROM entries WHERE account = $1', params: ['cash'] }])
 })
 
 test('GET /entries/balance/:account is 0 for an account without rows', async () => {
+  pgHandler = () => ({ rows: [{ total: '0' }] })
   const body = await (await fetch(base + '/entries/balance/ghost')).json()
   assert.deepEqual(body, { account: 'ghost', balance: 0 })
 })

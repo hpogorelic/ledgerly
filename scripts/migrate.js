@@ -7,5 +7,6 @@ await query(`CREATE TABLE IF NOT EXISTS entries (
   memo TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 )`, [])
+await query('CREATE INDEX IF NOT EXISTS entries_account_idx ON entries(account)', [])
 await getPool().end()
 console.log('migrated')

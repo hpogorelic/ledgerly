@@ -53,10 +53,8 @@ router.post('/', async function (req, res) {
 
 router.get('/balance/:account', async function (req, res) {
   try {
-    const r = await query('SELECT amount_cents FROM entries WHERE account = $1', [req.params.account])
-    let total = 0
-    for (let i = 0; i < r.rows.length; i++) total = total + r.rows[i].amount_cents
-    res.json({ account: req.params.account, balance: fromCents(total) })
+    const r = await query('SELECT COALESCE(SUM(amount_cents),0)::bigint AS total FROM entries WHERE account = $1', [req.params.account])
+    res.json({ account: req.params.account, balance: fromCents(Number(r.rows[0].total)) })
   } catch (e) {
     internalError(res, e)
   }
