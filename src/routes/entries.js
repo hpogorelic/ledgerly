@@ -6,6 +6,11 @@ import { cached, getCache } from '../db/cache.js'
 
 const router = express.Router()
 
+function internalError(res, err) {
+  console.error(err)
+  res.status(500).json({ error: 'internal error' })
+}
+
 router.get('/', async function (req, res) {
   try {
     const rows = await cached('entries:all', 30, async function () {
@@ -16,13 +21,13 @@ router.get('/', async function (req, res) {
       return { id: row.id, account: row.account, amount: fromCents(row.amount_cents), memo: row.memo, createdAt: row.created_at }
     }))
   } catch (e) {
-    res.status(500).json({ error: e.message })
+    internalError(res, e)
   }
 })
 
 router.get('/by-account/:account', function (req, res) {
   query('SELECT id, account, amount_cents, memo, created_at FROM entries WHERE account = $1 ORDER BY id', [req.params.account], function (err, r) {
-    if (err) return res.status(500).json({ error: err.message })
+    if (err) return internalError(res, err)
     res.json(r.rows.map(function (row) {
       return { id: row.id, account: row.account, amount: fromCents(row.amount_cents), memo: row.memo, createdAt: row.created_at }
     }))
@@ -35,7 +40,7 @@ router.post('/', function (req, res) {
   var cents = toCents(req.body.amount)
   query('INSERT INTO entries (account, amount_cents, memo) VALUES ($1, $2, $3) RETURNING id, account, amount_cents, memo, created_at',
     [req.body.account, cents, req.body.memo || null], function (err, r) {
-      if (err) return res.status(500).json({ error: err.message })
+      if (err) return internalError(res, err)
       getCache().del('entries:all')
       var row = r.rows[0]
       res.status(201).json({ id: row.id, account: row.account, amount: fromCents(row.amount_cents), memo: row.memo, createdAt: row.created_at })
@@ -44,7 +49,7 @@ router.post('/', function (req, res) {
 
 router.get('/balance/:account', function (req, res) {
   query('SELECT amount_cents FROM entries WHERE account = $1', [req.params.account], function (err, r) {
-    if (err) return res.status(500).json({ error: err.message })
+    if (err) return internalError(res, err)
     var total = 0
     for (var i = 0; i < r.rows.length; i++) total = total + r.rows[i].amount_cents
     res.json({ account: req.params.account, balance: fromCents(total) })

@@ -16,13 +16,13 @@ after(() => {
 })
 
 async function silenced(fn) {
-  const origLog = console.log
+  const origError = console.error
   const logged = []
-  console.log = (...args) => { logged.push(args) }
+  console.error = (...args) => { logged.push(args) }
   try {
     return { result: await fn(), logged }
   } finally {
-    console.log = origLog
+    console.error = origError
   }
 }
 
@@ -39,12 +39,13 @@ test('createApp is a function that returns a distinct Express app on each call',
   assert.notEqual(a, b)
 })
 
-test('createApp mounts json parser, /entries, /health and the error handler in that order', () => {
+test('createApp mounts helmet, json parser, /entries (rate limited), /health and the error handler in that order', () => {
   const app = createApp()
   const stack = app.router.stack
   const mounted = (l, p) => l.matchers.some((m) => m(p))
-  const layers = stack.slice(-4).map((l) => l.name + ':' + (mounted(l, '/entries') ? 'entries' : mounted(l, '/health') ? 'health' : ''))
-  assert.deepEqual(layers.slice(0, 3), ['jsonParser:', 'router:entries', 'router:health'])
+  const layers = stack.slice(-6).map((l) => (mounted(l, '/entries') ? 'entries' : mounted(l, '/health') ? 'health' : '') + ':' + l.name)
+  assert.deepEqual(layers.slice(0, 2), [':helmetMiddleware', ':jsonParser'])
+  assert.deepEqual(layers.slice(3, 5), ['entries:router', 'health:router'])
   assert.equal(stack[stack.length - 1].handle.length, 4)
 })
 
@@ -66,22 +67,24 @@ test('a method the /health router does not define falls through to the 404 page'
   assert.match(await r.text(), /Cannot POST \/health/)
 })
 
-test('responses carry the Express default X-Powered-By header and no security headers of their own', async () => {
+test('responses carry helmet security headers and no X-Powered-By', async () => {
   const r = await postJson('/entries', '{}')
-  assert.equal(r.headers.get('x-powered-by'), 'Express')
-  assert.equal(r.headers.get('x-content-type-options'), null)
-  assert.equal(r.headers.get('strict-transport-security'), null)
+  assert.equal(r.headers.get('x-powered-by'), null)
+  assert.equal(r.headers.get('x-content-type-options'), 'nosniff')
+  assert.match(r.headers.get('strict-transport-security'), /max-age=/)
+  assert.ok(r.headers.get('content-security-policy'))
+  assert.equal(r.headers.get('x-frame-options'), 'SAMEORIGIN')
   assert.equal(r.headers.get('access-control-allow-origin'), null)
-  // only the default 404 page (finalhandler) adds nosniff
   const nf = await fetch(base + '/nope')
   assert.equal(nf.headers.get('x-content-type-options'), 'nosniff')
+  assert.equal(nf.headers.get('x-powered-by'), null)
 })
 
 test('a JSON route answer is application/json with charset utf-8', async () => {
   const r = await fetch(base + '/entries', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
   assert.equal(r.status, 400)
   assert.equal(r.headers.get('content-type'), 'application/json; charset=utf-8')
-  assert.equal(r.headers.get('x-powered-by'), 'Express')
+  assert.equal(r.headers.get('x-powered-by'), null)
 })
 
 test('a valid JSON body is parsed before the router sees it (validation errors come back as 400)', async () => {
@@ -96,47 +99,78 @@ test('a body that is not JSON content-type is not parsed: the router sees an emp
   assert.deepEqual(await r.json(), { errors: ['account is required', 'amount must be a number'] })
 })
 
-test('malformed JSON reaches the error handler: 500 {error: "internal error", detail: stack}', async () => {
+test('malformed JSON reaches the error handler: 400 with a generic message, error logged server-side', async () => {
   const { result: r, logged } = await silenced(() => postJson('/entries', '{"account":'))
-  assert.equal(r.status, 500)
+  assert.equal(r.status, 400)
   assert.equal(r.headers.get('content-type'), 'application/json; charset=utf-8')
   const body = await r.json()
-  assert.deepEqual(Object.keys(body).sort(), ['detail', 'error'])
-  assert.equal(body.error, 'internal error')
-  assert.equal(typeof body.detail, 'string')
-  assert.match(body.detail, /^SyntaxError/)
-  assert.match(body.detail, /\n\s+at /)
+  assert.deepEqual(body, { error: 'bad request' })
   assert.equal(logged.length, 1)
   assert.equal(logged[0].length, 1)
   assert.ok(logged[0][0] instanceof Error)
 })
 
-test('malformed JSON is answered 500 (not the parser 400) on any path, even unrouted ones', async () => {
+test('malformed JSON is answered 400 on any path, even unrouted ones', async () => {
   const { result: r } = await silenced(() => postJson('/nope', 'not json'))
-  assert.equal(r.status, 500)
-  assert.equal((await r.json()).error, 'internal error')
+  assert.equal(r.status, 400)
+  assert.deepEqual(await r.json(), { error: 'bad request' })
 })
 
-test('a non-object JSON body is rejected by the strict parser with the same 500', async () => {
+test('a non-object JSON body is rejected by the strict parser with the same 400', async () => {
   const { result: r } = await silenced(() => postJson('/entries', '"just a string"'))
-  assert.equal(r.status, 500)
-  const body = await r.json()
-  assert.equal(body.error, 'internal error')
-  assert.match(body.detail, /SyntaxError/)
+  assert.equal(r.status, 400)
+  assert.deepEqual(await r.json(), { error: 'bad request' })
 })
 
-test('a body over the 100kb parser limit is answered 500 (the 413 status is not kept)', async () => {
+test('a body over the 100kb parser limit keeps its 413 status with a generic message', async () => {
   const big = JSON.stringify({ account: 'cash', amount: 1, memo: 'x'.repeat(200 * 1024) })
   const { result: r, logged } = await silenced(() => postJson('/entries', big))
-  assert.equal(r.status, 500)
-  const body = await r.json()
-  assert.equal(body.error, 'internal error')
-  assert.match(body.detail, /PayloadTooLargeError|request entity too large/)
+  assert.equal(r.status, 413)
+  assert.deepEqual(await r.json(), { error: 'payload too large' })
   assert.equal(logged.length, 1)
 })
 
-test('the error handler leaks the stack trace in the response detail', async () => {
+test('the error handler sends no stack trace or detail to the client', async () => {
   const { result: r } = await silenced(() => postJson('/entries', '{'))
-  const body = await r.json()
-  assert.ok(body.detail.includes('node_modules'))
+  const text = await r.text()
+  assert.ok(!text.includes('detail'))
+  assert.ok(!text.includes('node_modules'))
+  assert.ok(!text.includes('SyntaxError'))
+})
+
+test('an error without a 4xx status is answered 500 {error: "internal error"} only', async () => {
+  const app = createApp()
+  const handler = app.router.stack[app.router.stack.length - 1].handle
+  const res = { code: 0, body: null, status (c) { this.code = c; return this }, json (b) { this.body = b; return this } }
+  const { logged } = await silenced(async () => handler(new Error('relation "entries" does not exist'), {}, res, () => {}))
+  assert.equal(res.code, 500)
+  assert.deepEqual(res.body, { error: 'internal error' })
+  assert.equal(logged.length, 1)
+})
+
+test('/entries is rate limited per IP: requests over the limit get 429', async () => {
+  const limited = createApp({ rateLimitMax: 2 }).listen(0)
+  const url = 'http://127.0.0.1:' + limited.address().port + '/entries'
+  try {
+    const send = () => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
+    assert.equal((await send()).status, 400)
+    assert.equal((await send()).status, 400)
+    const r = await send()
+    assert.equal(r.status, 429)
+    assert.deepEqual(await r.json(), { error: 'too many requests' })
+  } finally {
+    limited.close()
+  }
+})
+
+test('/health is not rate limited by the /entries limiter', async () => {
+  const limited = createApp({ rateLimitMax: 1 }).listen(0)
+  const base2 = 'http://127.0.0.1:' + limited.address().port
+  try {
+    const r = await fetch(base2 + '/health', { method: 'POST' })
+    assert.equal(r.status, 404)
+    assert.equal((await fetch(base2 + '/health', { method: 'POST' })).status, 404)
+  } finally {
+    limited.close()
+  }
 })

@@ -83,6 +83,17 @@ beforeEach(() => {
 const CREATED = '2024-01-02T03:04:05.000Z'
 const dbRow = (id, account, cents, memo) => ({ id, account, amount_cents: cents, memo, created_at: CREATED })
 
+// silences the server-side console.error logging of a request's error
+async function quiet(fn) {
+  const origError = console.error
+  console.error = () => {}
+  try {
+    return await fn()
+  } finally {
+    console.error = origError
+  }
+}
+
 function post(body, raw) {
   return fetch(base + '/entries', {
     method: 'POST',
@@ -224,18 +235,18 @@ test('GET /entries returns stale data after the database changes until the key i
   assert.equal(fresh.length, 2)
 })
 
-test('GET /entries answers 500 with the message when Postgres fails', async () => {
+test('GET /entries answers 500 with a generic error (no Postgres text) when Postgres fails', async () => {
   pgHandler = () => { throw new Error('db down') }
-  const r = await fetch(base + '/entries')
+  const r = await quiet(() => fetch(base + '/entries'))
   assert.equal(r.status, 500)
-  assert.deepEqual(await r.json(), { error: 'db down' })
+  assert.deepEqual(await r.json(), { error: 'internal error' })
 })
 
-test('GET /entries answers 500 with the message when Redis fails (no DB fallback)', async () => {
+test('GET /entries answers 500 with a generic error when Redis fails (no DB fallback)', async () => {
   redisFail.get = new Error('redis down')
-  const r = await fetch(base + '/entries')
+  const r = await quiet(() => fetch(base + '/entries'))
   assert.equal(r.status, 500)
-  assert.deepEqual(await r.json(), { error: 'redis down' })
+  assert.deepEqual(await r.json(), { error: 'internal error' })
   assert.equal(pgCalls.length, 0)
 })
 
@@ -281,11 +292,11 @@ test('GET /entries/by-account/:account returns an empty list for an unknown acco
   assert.deepEqual(await r.json(), [])
 })
 
-test('GET /entries/by-account/:account answers 500 with the message when Postgres fails', async () => {
+test('GET /entries/by-account/:account answers 500 with a generic error when Postgres fails', async () => {
   pgHandler = () => { throw new Error('bad sql') }
-  const r = await fetch(base + '/entries/by-account/cash')
+  const r = await quiet(() => fetch(base + '/entries/by-account/cash'))
   assert.equal(r.status, 500)
-  assert.deepEqual(await r.json(), { error: 'bad sql' })
+  assert.deepEqual(await r.json(), { error: 'internal error' })
 })
 
 // ---- POST /entries -----------------------------------------------------
@@ -337,29 +348,21 @@ test('POST /entries answers 400 when the body is not an object', async () => {
   assert.deepEqual(await r.json(), { errors: ['account is required', 'amount must be a number'] })
 })
 
-test('POST /entries answers 500 with the message when the insert fails and keeps the cache', async () => {
+test('POST /entries answers 500 with a generic error when the insert fails and keeps the cache', async () => {
   pgHandler = () => { throw new Error('insert failed') }
   store.set('entries:all', '[]')
-  const r = await post({ account: 'cash', amount: 1 })
+  const r = await quiet(() => post({ account: 'cash', amount: 1 }))
   assert.equal(r.status, 500)
-  assert.deepEqual(await r.json(), { error: 'insert failed' })
+  assert.deepEqual(await r.json(), { error: 'internal error' })
   assert.equal(store.has('entries:all'), true)
 })
 
-test('malformed JSON goes to the app error handler: 500 with "internal error" and a stack detail', async () => {
-  const origLog = console.log
-  console.log = () => {}
-  let r, body
-  try {
-    r = await post(null, '{"account":')
-    body = await r.json()
-  } finally {
-    console.log = origLog
-  }
-  assert.equal(r.status, 500)
-  assert.equal(body.error, 'internal error')
-  assert.equal(typeof body.detail, 'string')
-  assert.match(body.detail, /SyntaxError/)
+test('malformed JSON goes to the app error handler: 400 with a generic message and no detail', async () => {
+  const r = await quiet(() => post(null, '{"account":'))
+  const body = await r.json()
+  assert.equal(r.status, 400)
+  assert.deepEqual(body, { error: 'bad request' })
+  assert.equal(body.detail, undefined)
 })
 
 // ---- GET /entries/balance/:account ------------------------------------
@@ -377,11 +380,11 @@ test('GET /entries/balance/:account is 0 for an account without rows', async () 
   assert.deepEqual(body, { account: 'ghost', balance: 0 })
 })
 
-test('GET /entries/balance/:account answers 500 with the message when Postgres fails', async () => {
+test('GET /entries/balance/:account answers 500 with a generic error when Postgres fails', async () => {
   pgHandler = () => { throw new Error('sum failed') }
-  const r = await fetch(base + '/entries/balance/cash')
+  const r = await quiet(() => fetch(base + '/entries/balance/cash'))
   assert.equal(r.status, 500)
-  assert.deepEqual(await r.json(), { error: 'sum failed' })
+  assert.deepEqual(await r.json(), { error: 'internal error' })
 })
 
 // ---- /health -----------------------------------------------------------
