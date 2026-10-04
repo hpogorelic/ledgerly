@@ -248,19 +248,31 @@ test('GET /entries/by-account/:account lists mapped rows for the account', async
   assert.deepEqual(await r.json(), [{ id: 3, account: 'cash', amount: 2.5, memo: 'x', createdAt: CREATED }])
 })
 
-test('GET /entries/by-account/:account concatenates the account into the SQL (no parameters, no cache)', async () => {
+test('GET /entries/by-account/:account passes the account as a SQL parameter (no cache)', async () => {
   await fetch(base + '/entries/by-account/cash')
   assert.deepEqual(pgCalls, [{
-    text: "SELECT id, account, amount_cents, memo, created_at FROM entries WHERE account = 'cash' ORDER BY id",
-    params: []
+    text: 'SELECT id, account, amount_cents, memo, created_at FROM entries WHERE account = $1 ORDER BY id',
+    params: ['cash']
   }])
   assert.equal(redisCalls.length, 0)
 })
 
-test('GET /entries/by-account/:account puts a quote in the account straight into the SQL (injectable today)', async () => {
+test('GET /entries/by-account/:account keeps a quote in the account out of the SQL text', async () => {
   await fetch(base + '/entries/by-account/' + encodeURIComponent("x' OR '1'='1"))
   assert.equal(pgCalls[0].text,
-    "SELECT id, account, amount_cents, memo, created_at FROM entries WHERE account = 'x' OR '1'='1' ORDER BY id")
+    'SELECT id, account, amount_cents, memo, created_at FROM entries WHERE account = $1 ORDER BY id')
+  assert.deepEqual(pgCalls[0].params, ["x' OR '1'='1"])
+})
+
+test("GET /entries/by-account/' OR '1'='1 returns no rows from other accounts", async () => {
+  const all = [dbRow(1, 'cash', 100, 'a'), dbRow(2, 'bank', 200, 'b')]
+  pgHandler = (text, params) => {
+    assert.match(text, /WHERE account = \$1/)
+    return { rows: all.filter((row) => row.account === params[0]) }
+  }
+  const r = await fetch(base + '/entries/by-account/' + encodeURIComponent("' OR '1'='1"))
+  assert.equal(r.status, 200)
+  assert.deepEqual(await r.json(), [])
 })
 
 test('GET /entries/by-account/:account returns an empty list for an unknown account', async () => {

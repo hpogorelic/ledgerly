@@ -21,8 +21,7 @@ router.get('/', async function (req, res) {
 })
 
 router.get('/by-account/:account', function (req, res) {
-  var sql = "SELECT id, account, amount_cents, memo, created_at FROM entries WHERE account = '" + req.params.account + "' ORDER BY id"
-  query(sql, [], function (err, r) {
+  query('SELECT id, account, amount_cents, memo, created_at FROM entries WHERE account = $1 ORDER BY id', [req.params.account], function (err, r) {
     if (err) return res.status(500).json({ error: err.message })
     res.json(r.rows.map(function (row) {
       return { id: row.id, account: row.account, amount: fromCents(row.amount_cents), memo: row.memo, createdAt: row.created_at }
