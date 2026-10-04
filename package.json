@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "migrate": "node scripts/migrate.js",
+    "lint": "eslint .",
     "test": "node --test",
     "test:env": "node --env-file=.env.test --test"
   },
@@ -18,5 +19,10 @@
     "ioredis": "4.28.5",
     "pg": "8.7.1",
     "request": "2.88.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0"
   }
 }

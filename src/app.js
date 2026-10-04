@@ -18,7 +18,8 @@ export function createApp(options = {}) {
   })
   app.use('/entries', entriesLimiter, entries)
   app.use('/health', health)
-  app.use(function (err, req, res, next) {
+  // Express identifies error handlers by their four-argument arity, so `next` must stay.
+  app.use(function (err, req, res, next) { // eslint-disable-line no-unused-vars
     console.error(err)
     const status = err && (err.status || err.statusCode)
     if (status >= 400 && status < 500) {
