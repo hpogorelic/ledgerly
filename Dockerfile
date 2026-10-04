@@ -1,6 +1,7 @@
-FROM node:24
+FROM node:24-slim
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+RUN npm ci --omit=dev
 COPY . .
-CMD ["npm", "start"]
+USER node
+CMD ["node", "src/server.js"]
