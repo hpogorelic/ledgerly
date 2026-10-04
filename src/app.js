@@ -1,5 +1,4 @@
 import express from 'express'
-import bodyParser from 'body-parser'
 import helmet from 'helmet'
 import { rateLimit } from 'express-rate-limit'
 import { STATUS_CODES } from 'node:http'
@@ -9,7 +8,7 @@ import health from './routes/health.js'
 export function createApp(options = {}) {
   const app = express()
   app.use(helmet())
-  app.use(bodyParser.json())
+  app.use(express.json())
   const entriesLimiter = rateLimit({
     windowMs: options.rateLimitWindowMs || 15 * 60 * 1000,
     limit: options.rateLimitMax || 100,

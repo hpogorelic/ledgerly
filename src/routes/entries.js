@@ -37,7 +37,8 @@ router.get('/by-account/:account', async function (req, res) {
 })
 
 router.post('/', async function (req, res) {
-  const errors = validateEntry(req.body)
+  // express.json() leaves req.body undefined when the body was not parsed (body-parser 1.19 left {})
+  const errors = validateEntry(req.body ?? {})
   if (errors.length) return res.status(400).json({ errors: errors })
   try {
     const cents = toCents(req.body.amount)
