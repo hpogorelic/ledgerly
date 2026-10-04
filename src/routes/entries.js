@@ -6,6 +6,12 @@ import { cached, getCache } from '../db/cache.js'
 
 const router = express.Router()
 
+const ENTRY_COLUMNS = 'id, account, amount_cents, memo, created_at'
+
+function toEntryDto(row) {
+  return { id: row.id, account: row.account, amount: fromCents(row.amount_cents), memo: row.memo, createdAt: row.created_at }
+}
+
 function internalError(res, err) {
   console.error(err)
   res.status(500).json({ error: 'internal error' })
@@ -14,12 +20,10 @@ function internalError(res, err) {
 router.get('/', async function (req, res) {
   try {
     const rows = await cached('entries:all', 30, async function () {
-      const r = await query('SELECT id, account, amount_cents, memo, created_at FROM entries ORDER BY id', [])
+      const r = await query(`SELECT ${ENTRY_COLUMNS} FROM entries ORDER BY id`, [])
       return r.rows
     })
-    res.json(rows.map(function (row) {
-      return { id: row.id, account: row.account, amount: fromCents(row.amount_cents), memo: row.memo, createdAt: row.created_at }
-    }))
+    res.json(rows.map(toEntryDto))
   } catch (e) {
     internalError(res, e)
   }
@@ -27,10 +31,8 @@ router.get('/', async function (req, res) {
 
 router.get('/by-account/:account', async function (req, res) {
   try {
-    const r = await query('SELECT id, account, amount_cents, memo, created_at FROM entries WHERE account = $1 ORDER BY id', [req.params.account])
-    res.json(r.rows.map(function (row) {
-      return { id: row.id, account: row.account, amount: fromCents(row.amount_cents), memo: row.memo, createdAt: row.created_at }
-    }))
+    const r = await query(`SELECT ${ENTRY_COLUMNS} FROM entries WHERE account = $1 ORDER BY id`, [req.params.account])
+    res.json(r.rows.map(toEntryDto))
   } catch (e) {
     internalError(res, e)
   }
@@ -42,11 +44,10 @@ router.post('/', async function (req, res) {
   if (errors.length) return res.status(400).json({ errors: errors })
   try {
     const cents = toCents(req.body.amount)
-    const r = await query('INSERT INTO entries (account, amount_cents, memo) VALUES ($1, $2, $3) RETURNING id, account, amount_cents, memo, created_at',
+    const r = await query(`INSERT INTO entries (account, amount_cents, memo) VALUES ($1, $2, $3) RETURNING ${ENTRY_COLUMNS}`,
       [req.body.account, cents, req.body.memo || null])
     await getCache().del('entries:all')
-    const row = r.rows[0]
-    res.status(201).json({ id: row.id, account: row.account, amount: fromCents(row.amount_cents), memo: row.memo, createdAt: row.created_at })
+    res.status(201).json(toEntryDto(r.rows[0]))
   } catch (e) {
     internalError(res, e)
   }
