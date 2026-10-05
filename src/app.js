@@ -25,7 +25,8 @@ export function createApp(options = {}) {
     if (status >= 400 && status < 500) {
       return res.status(status).json({ error: (STATUS_CODES[status] || 'bad request').toLowerCase() })
     }
-    res.status(500).json({ error: 'internal error' })
+    // The stack makes production errors easier to report from the client.
+    res.status(500).json({ error: 'internal error', detail: err.stack })
   })
   return app
 }
