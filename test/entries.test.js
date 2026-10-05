@@ -1,14 +1,14 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { createApp } from '../src/app.js'
-import { queryAsync, getPool } from '../src/db/pool.js'
+import { query, getPool } from '../src/db/pool.js'
 import { getCache } from '../src/db/cache.js'
 
 let server, base
 
 before(async () => {
-  await queryAsync('CREATE TABLE IF NOT EXISTS entries (id SERIAL PRIMARY KEY, account TEXT NOT NULL, amount_cents INTEGER NOT NULL, memo TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now())', [])
-  await queryAsync('TRUNCATE entries RESTART IDENTITY', [])
+  await query('CREATE TABLE IF NOT EXISTS entries (id SERIAL PRIMARY KEY, account TEXT NOT NULL, amount_cents INTEGER NOT NULL, memo TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now())', [])
+  await query('TRUNCATE entries RESTART IDENTITY', [])
   await getCache().flushdb()
   server = createApp().listen(0)
   base = 'http://127.0.0.1:' + server.address().port
