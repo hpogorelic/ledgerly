@@ -1,6 +1,6 @@
 # ledgerly
 
-Ledger API (Express, PostgreSQL, Redis cache).
+A small ledger API built with Express, PostgreSQL, and a Redis cache.
 
 ## Setup
 
